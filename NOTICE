@@ -1,0 +1,15 @@
+NUEEDC Car & Vision
+
+The repository contains project-specific competition code together with
+third-party components and vendor SDK files required by the original embedded
+projects.
+
+Project-original portions are provided under the MIT License in LICENSE.
+Third-party components, including but not limited to the TI MSPM0 SDK, Arm
+CMSIS, Fusion, MaixPy-related code, OpenCV-related interfaces, and toolchain
+support files, remain subject to their own copyright notices and license terms.
+Where a source file contains an existing notice, that notice takes precedence
+for that file.
+
+The test signing keys under the bundled MCUboot source tree are upstream test
+fixtures and must never be used as production security credentials.

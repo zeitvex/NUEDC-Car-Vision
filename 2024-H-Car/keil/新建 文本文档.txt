@@ -1,0 +1,210 @@
+void renwu_3() {
+    static uint8_t n = 21;
+    static float steer_gradient_cnt = 0;
+    static float filtered_turn_ctrl_pwm = 0;
+    static float filtered_distance_output = 0;
+    const float alpha = 0.1; // 低通滤波器系数
+
+    if (flight_subtask_cnt[n] == 0) {
+        mp3_flag = 1;
+        flight_subtask_cnt[n] = 1;
+    }
+    // 线程1，转向特定角度
+    else if (flight_subtask_cnt[n] == 1) {
+        speed_ctrl_mode = 1;
+        turn_r(42);
+        steer_control(&turn_ctrl_pwm);
+        filtered_turn_ctrl_pwm = low_pass_filter(turn_ctrl_pwm, filtered_turn_ctrl_pwm, alpha);
+        speed_setup = RC_Data.rc_rpyt[RC_PITCH]; // 速度期望来源于俯仰杆给定
+        // 期望速度
+        speed_expect[0] = speed_setup + filtered_turn_ctrl_pwm * steer_gyro_scale; // 左边轮子速度期望
+        speed_expect[1] = speed_setup - filtered_turn_ctrl_pwm * steer_gyro_scale; // 右边轮子速度期望
+        // 速度控制
+        speed_control_100hz(speed_ctrl_mode);
+        if (trackless_output.yaw_ctrl_end == 1) {
+            flight_subtask_cnt[n] = 2;
+            distance_ctrl.expect = 110;
+            flight_subtask_cnt[1] = 0;
+        }
+    }
+    // 线程2，直线行驶
+    else if (flight_subtask_cnt[n] == 2) {
+        distance_control();
+        turn_r(0);
+        steer_control(&turn_ctrl_pwm);
+        filtered_distance_output = low_pass_filter(distance_ctrl.output, filtered_distance_output, alpha);
+        filtered_turn_ctrl_pwm = low_pass_filter(turn_ctrl_pwm, filtered_turn_ctrl_pwm, alpha);
+        // 期望速度
+        speed_expect[0] = filtered_distance_output + filtered_turn_ctrl_pwm * steer_gyro_scale; // 左边轮子速度期望
+        speed_expect[1] = filtered_distance_output - filtered_turn_ctrl_pwm * steer_gyro_scale; // 右边轮子速度期望
+        speed_control_100hz(speed_ctrl_mode);
+        if (ABS(distance_ctrl.error) < 0.5f) {
+            flight_subtask_cnt[1] = 0;
+            flight_subtask_cnt[n] = 3;
+        }
+    }
+    // 线程3，车身转正，对准黑线
+    else if (flight_subtask_cnt[n] == 3) {
+        speed_ctrl_mode = 1;
+        turn_l(42);
+        steer_control(&turn_ctrl_pwm);
+        filtered_turn_ctrl_pwm = low_pass_filter(turn_ctrl_pwm, filtered_turn_ctrl_pwm, alpha);
+        speed_setup = RC_Data.rc_rpyt[RC_PITCH]; // 速度期望来源于俯仰杆给定
+        // 期望速度
+        speed_expect[0] = speed_setup + turn_ctrl_pwm * steer_gyro_scale; // 左边轮子速度期望
+        speed_expect[1] = speed_setup - turn_ctrl_pwm * steer_gyro_scale; // 右边轮子速度期望
+        // 速度控制
+        speed_control_100hz(speed_ctrl_mode);
+        if (trackless_output.yaw_ctrl_end == 1) {
+            execute_time_ms[n] = 250 / 5;
+            flight_subtask_cnt[1] = 0;
+            flight_subtask_cnt[n] = 4;
+        }
+    }
+    else if (flight_subtask_cnt[n] == 4) {
+        speed_ctrl_mode = 1;
+        turn_r(0);
+        steer_control(&turn_ctrl_pwm);
+        filtered_turn_ctrl_pwm = low_pass_filter(turn_ctrl_pwm, filtered_turn_ctrl_pwm, alpha);
+        // 期望速度
+        speed_expect[0] = 20 + filtered_turn_ctrl_pwm * steer_gyro_scale; // 左边轮子速度期望
+        speed_expect[1] = 20 - filtered_turn_ctrl_pwm * steer_gyro_scale; // 右边轮子速度期望
+        speed_control_100hz(speed_ctrl_mode);
+
+        if (execute_time_ms[n] > 0) execute_time_ms[n]--;
+        if (execute_time_ms[n] == 0) {
+            execute_time_ms[n] = 6500 / 5;
+            flight_subtask_cnt[1] = 0;
+            flight_subtask_cnt[n] = 5;
+        }
+    }
+    else if (flight_subtask_cnt[n] == 5) {
+        speed_ctrl_mode = 1;
+        if (read_gray_bit12) {
+            speed_expect[0] = 10; // 左边轮子速度期望
+            speed_expect[1] = 30;
+        }
+        else {
+            speed_expect[0] = 20;
+            speed_expect[1] = 20;
+        }
+        speed_control_100hz(speed_ctrl_mode);
+        if (execute_time_ms[n] > 0) execute_time_ms[n]--;
+        if (execute_time_ms[n] == 0) {
+            flight_subtask_cnt[1] = 0;
+            flight_subtask_cnt[n] = 6;
+        }
+    }
+    // 线程3，循迹过后矫正姿态
+    else if (flight_subtask_cnt[n] == 6) {
+        speed_ctrl_mode = 1;
+        turn_jdz(180);
+        steer_control(&turn_ctrl_pwm);
+        filtered_turn_ctrl_pwm = low_pass_filter(turn_ctrl_pwm, filtered_turn_ctrl_pwm, alpha);
+        speed_setup = RC_Data.rc_rpyt[RC_PITCH]; // 速度期望来源于俯仰杆给定
+        // 期望速度
+        speed_expect[0] = speed_setup + filtered_turn_ctrl_pwm * steer_gyro_scale; // 左边轮子速度期望
+        speed_expect[1] = speed_setup - filtered_turn_ctrl_pwm * steer_gyro_scale; // 右边轮子速度期望
+        // 速度控制
+        speed_control_100hz(speed_ctrl_mode);
+        if (trackless_output.yaw_ctrl_end == 1) {
+            execute_time_ms[n] = 3300 / 5;
+            flight_subtask_cnt[1] = 0;
+            flight_subtask_cnt[n] = 7;
+        }
+    }
+    else if (flight_subtask_cnt[n] == 7) {
+        speed_ctrl_mode = 1;
+        turn_l(42);
+        steer_control(&turn_ctrl_pwm);
+        filtered_turn_ctrl_pwm = low_pass_filter(turn_ctrl_pwm, filtered_turn_ctrl_pwm, alpha);
+        speed_setup = RC_Data.rc_rpyt[RC_PITCH]; // 速度期望来源于俯仰杆给定
+        // 期望速度
+        speed_expect[0] = speed_setup + filtered_turn_ctrl_pwm * steer_gyro_scale; // 左边轮子速度期望
+        speed_expect[1] = speed_setup - filtered_turn_ctrl_pwm * steer_gyro_scale; // 右边轮子速度期望
+        // 速度控制
+        speed_control_100hz(speed_ctrl_mode);
+        if (trackless_output.yaw_ctrl_end == 1) {
+            flight_subtask_cnt[n] = 8;
+            execute_time_ms[n] = 5700 / 5;
+            flight_subtask_cnt[1] = 0;
+        }
+    }
+    // 线程2，直线行驶
+    else if (flight_subtask_cnt[n] == 8) {
+        // distance_control();
+        turn_r(0);
+        steer_control(&turn_ctrl_pwm);
+        filtered_distance_output = low_pass_filter(20, filtered_distance_output, alpha);
+        filtered_turn_ctrl_pwm = low_pass_filter(turn_ctrl_pwm, filtered_turn_ctrl_pwm, alpha);
+        // 期望速度
+        speed_expect[0] = filtered_distance_output + filtered_turn_ctrl_pwm * steer_gyro_scale; // 左边轮子速度期望
+        speed_expect[1] = filtered_distance_output - filtered_turn_ctrl_pwm * steer_gyro_scale; // 右边轮子速度期望
+        speed_control_100hz(speed_ctrl_mode);
+        if (execute_time_ms[n] > 0) execute_time_ms[n]--;
+        if (execute_time_ms[n] == 0) {
+            flight_subtask_cnt[1] = 0;
+            flight_subtask_cnt[n] = 9;
+        }
+    }
+	else if (flight_subtask_cnt[n] == 9) {
+		speed_ctrl_mode = 1;
+		turn_jdz(180);
+		steer_control(&turn_ctrl_pwm);
+		filtered_turn_ctrl_pwm = low_pass_filter(turn_ctrl_pwm, filtered_turn_ctrl_pwm, alpha);
+		speed_setup = RC_Data.rc_rpyt[RC_PITCH]; // 速度期望来源于俯仰杆给定
+		// 期望速度
+		speed_expect[0] = speed_setup + filtered_turn_ctrl_pwm * steer_gyro_scale; // 左边轮子速度期望
+		speed_expect[1] = speed_setup - filtered_turn_ctrl_pwm * steer_gyro_scale; // 右边轮子速度期望  
+		// 速度控制
+		speed_control_100hz(speed_ctrl_mode);
+		if(trackless_output.yaw_ctrl_end == 1) {
+			execute_time_ms[n] = 250 / 5;
+			flight_subtask_cnt[1] = 0;
+			flight_subtask_cnt[n] = 10;
+		}
+	}
+	else if (flight_subtask_cnt[n] == 10) {
+		speed_ctrl_mode = 1;
+		turn_r(0);
+		steer_control(&turn_ctrl_pwm);
+		filtered_turn_ctrl_pwm = low_pass_filter(turn_ctrl_pwm, filtered_turn_ctrl_pwm, alpha);
+		// 期望速度
+		speed_expect[0] = 20 + filtered_turn_ctrl_pwm * steer_gyro_scale; // 左边轮子速度期望
+		speed_expect[1] = 20 - filtered_turn_ctrl_pwm * steer_gyro_scale; // 右边轮子速度期望
+		speed_control_100hz(speed_ctrl_mode);   
+				
+		if (execute_time_ms[n] > 0) execute_time_ms[n]--;
+		if (execute_time_ms[n] == 0) {
+			execute_time_ms[n] = 6500 / 5;
+			flight_subtask_cnt[1] = 0;
+			flight_subtask_cnt[n] = 11;
+		}  
+	} 
+	else if (flight_subtask_cnt[n] == 11) {
+		speed_ctrl_mode = 1;
+		if (read_gray_bit2) {
+			speed_expect[0] = 30; // 左边轮子速度期望
+			speed_expect[1] = 10;
+		}
+		else {
+			speed_expect[0] = 20;
+			speed_expect[1] = 20;
+		}
+		speed_control_100hz(speed_ctrl_mode);
+		if (execute_time_ms[n] > 0) execute_time_ms[n]--;
+		if (execute_time_ms[n] == 0) {
+			flight_subtask_cnt[1] = 0;
+			flight_subtask_cnt[n] = 12;
+		}
+	}
+	// 暂停
+	else if (flight_subtask_cnt[n] == 12) {
+		speed_ctrl_mode = 1;
+		speed_expect[0] = 0;
+		speed_expect[1] = 0;
+		speed_control_100hz(speed_ctrl_mode);
+	}
+
+
+}

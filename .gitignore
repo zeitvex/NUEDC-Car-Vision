@@ -1,0 +1,42 @@
+# Operating systems and editors
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Eclipse / CCS workspace state
+**/.metadata/
+**/.settings/
+**/Debug/
+**/Release/
+
+# Keil user state and build output
+**/keil/Objects/
+**/keil/Listings/
+**/keil/*.uvguix.*
+**/keil/JLinkLog.txt
+**/keil/JLinkSettings.ini
+*.d
+*.o
+*.axf
+*.elf
+*.hex
+*.map
+*.lst
+*.lnp
+*.dep
+*.build_log.htm
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Upstream MCUboot test keys; never publish or use in production
+**/source/third_party/mcuboot/*.pem
+
+# Temporary files
+*.tmp
+*.bak
+*.log

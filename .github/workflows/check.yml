@@ -1,0 +1,30 @@
+name: Source checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vision-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check MaixPy source syntax
+        run: python -m compileall -q 2025-E-Vision
+
+      - name: Validate Keil project XML
+        run: >-
+          python -c "import xml.etree.ElementTree as ET;
+          ET.parse('2024-H-Car/keil/ncontroller.uvprojx');
+          ET.parse('2025-E-Car/keil/ncontroller.uvprojx')"
