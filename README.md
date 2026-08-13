@@ -1,4 +1,4 @@
-# NUEEDC Car & Vision
+# NUEDC Car & Vision
 
 全国大学生电子设计竞赛小车与视觉开源工程，包含 2024 年 H 题小车代码，以及相互配套的 2025 年 E 题 MaixCAM 视觉代码和 MSPM0G3507 小车代码。
 
